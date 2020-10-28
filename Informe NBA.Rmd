@@ -1,0 +1,274 @@
+---
+title: "NBA"
+author: "Antonio Pascual Hernandez"
+date: "28 de Octubre de 2020"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+
+El objetivo de este informe es estudiar el salario de los jugadores de la NBA a traves de las variables del dataset nba y crear un modelo que nos permita predecir el salario y el peso de cada variable en el mismo. En ultimo lugar, se va a realizar una prediccion del salario de 10 jugadores aleatorios de la NBA.
+
+
+```{r echo=FALSE}  
+library(readr)
+library(ggplot2)
+```
+
+
+
+```{r echo=FALSE}
+datos <- read.csv("nba.csv")
+```
+
+
+
+```{r echo=FALSE}
+datos <- na.omit(datos)
+```
+
+
+Hemos eliminado los NAs y debemos comprobar que no haya jugadores duplicados en el dataset, ya que los resultados se podrian ver afectados. Existen 2 datos duplicados, por lo que tendremos que eliminarlos.
+
+
+```{r echo=FALSE, eval=FALSE}
+duplicated(datos)
+nrow(datos[duplicated(datos$Player),])
+datos <- datos[!duplicated(datos$Player),]
+```
+
+```{r echo=FALSE, eval=FALSE}
+sum(duplicated(datos))
+```
+## Graficos
+A continuacion se va a representar graficamente una serie de variables del dataset de la NBA.
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= NBA_DraftNumber, y = Salary)) + geom_point()
+
+```
+
+Se puede obdervar que los jugadores que fueron seleccionados antes en el Draft tienden a tener un mayor salario
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= Age, y = Salary)) + geom_point()
+
+```
+
+Observamos que los jugadores mas jovenes no obtienen salarios muy altos. Es a partir de los 24-25 anos cuando los salarios comienzan a ser mas elevados. La mayor concentracion de los salarios mas elevados se encuentra entre los 24 y 33 anos. A partir de los 34 anos, los salarios comienzan a ser mas bajos. 
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= G, y = Salary)) + geom_point()
+
+```
+
+Se puede observar que los jugadores que disputan mas partidos son aquellos con un salario. Sin embargo, observamos que hay jugadores que han disputado pocos partidos durante la temporada pero su salario es muy elevado. Esto se puede deber, por ejemplo, que esos jugadores no han podido disputar muchos partidos debido a lesiones o sanciones.
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= MP, y = Salary)) + geom_point()
+
+```
+
+Si se observa el grafico anterior que estudia la relacion entre los munitos jugados y el salario, se puede extraer que los jugadores con mas munitos jugados tienden a ser los que tienen un salario mas elevado. Sin embargo, se encuentran jugadores que han disputado pocos munitos pero su salario es muy elevado.
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= DRB., y = Salary)) + geom_point()
+
+```
+
+En cuanto al porcentaje de rebotes defensivos y el salario, los jugadores con un mayor salario tienen un porcentaje de rebotes defensivos se encuentra entre 10% y 30%.
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= OWS, y = Salary)) + geom_point()
+
+```
+
+Al estudiar la relación del salario y la apartacion del jugador a las victorias de su equipo, observamos que son los jugadores que mas contribuyen a las vistorias de sus equipos lo que tienen un salario mayor.
+
+```{r echo=FALSE}
+ggplot(datos, aes(x= VORP, y = Salary)) + geom_point()
+
+```
+
+Se observa que al estudiar la relación entre el salario el valor sobre el jugador reemplazado, son quellos jugadores cuyo valor a suparado en gran medida al jugador al que ha reemplazado son los que tienen un mayor salario.
+
+## Modelos
+
+El primero modelo esta compuesto por todas las variables, excepto el pais de procedencia del jugador y su nombre
+```{r echo=FALSE}
+regresion1 = lm(Salary~.-NBA_Country -Player, data = datos)
+summary(regresion1)
+coefficients(regresion1)
+```
+
+El segundo modelo está compuesto por todas las variables del dataset, excepto el nombre del jugador
+
+```{r echo=FALSE}
+regresion2 = lm(Salary~.-Player,data=datos)
+summary(regresion2)
+coefficients(regresion2)
+```
+
+El tercer modelo está compuesto por las variables Número del Draft(NBA_DraftNumber), Edad (Age), Partidos(G) y Minutos Jugados(MP)
+
+```{r echo=FALSE}
+regresion3 = lm(Salary~NBA_DraftNumber + Age + G + MP, data = datos)
+summary(regresion3)
+coefficients(regresion3)
+```
+
+## Comparación de modelos.
+
+```{r echo=FALSE}
+anova(regresion3, regresion2, regresion1)
+AIC(regresion3, regresion2, regresion1)
+BIC(regresion3, regresion2, regresion1)
+```
+
+Se selecciona el modelo con menor  AIC, por lo que seleccionaremos el tercer modelo.
+
+## BEST SUBSET
+Consiste en estimar todas las regresiones posibles con las combinaciones de los p regresores.
+
+```{r echo=FALSE, warning=FALSE}
+library (leaps)
+regfit.full=regsubsets(Salary~.-Player-Tm-NBA_Country,datos)
+reg.summary=summary(regfit.full)
+reg.summary
+```
+
+```{r echo=FALSE}
+reg.summary$rss
+```
+
+Nos fijamos en el menor numero.
+
+Realizamos un nuevo modelo con las variables indicadas anteriormente
+
+```{r echo=FALSE}
+regresion4 = lm(Salary ~NBA_DraftNumber+Age+G+MP+DRB.+USG.+OWS+VORP, data=datos)
+summary(regresion4)
+```
+
+El modelo 4 está formado por las variables NBA_DraftNumber, Age, Partidos Jugados, Minutos Jugados, DRB(porcentaje de rebotes defensivos), USG.(el porcentaje de jugadas en las que el jugador ha participado), OWS () y VORP()
+
+Comparamos los 4 modelos
+
+```{r echo=FALSE}
+anova(regresion4,regresion3, regresion2, regresion1)
+AIC(regresion4, regresion3, regresion2, regresion1)
+BIC(regresion4,regresion3, regresion2, regresion1)
+```
+
+De acuerdo con el AIC, seleccionamos el modelo 4 (regresion4) porque su AIC es el menor.
+
+## Linealidad 
+
+```{r echo=FALSE, warning=FALSE}
+library(car)
+crPlots(regresion1)
+
+```
+
+Graficos de residuos parciales: se grafican valores ajustados con respecto a predictores y si no hay problemas de linealidad se obtiene un recta donde se representan los puntos
+
+## Varianza Constante. Homocedasticidad
+```{r echo=FALSE}
+
+library(car)
+ncvTest(regresion1)
+
+```
+El modelo 1 no tiene varianza constante.
+
+## Validación Global
+```{r echo=FALSE, warning=FALSE}
+library(gvlma)
+gvmodel <- gvlma(regresion1) 
+summary(gvmodel)
+```
+Si estudiamos la validación global del primero modelo, podemos observar que simplemente cumple la heterocedasticidad.
+
+## Multicolinealidad
+```{r echo=FALSE}
+vif(regresion1) 
+sqrt(vif(regresion1)) > 2
+```
+
+Si realizamos un estudio de Multicolinealidad, observamos un probelma de multicolinealidad ya que, como regla general, la raiz cuadrada de VIF es mayor que 2. 
+
+## Outliers
+```{r echo=FALSE}
+outlierTest(regresion1)
+```
+
+Los outliers son los datos que nos son bien predecidos por el modelo. Como son valores positivos, lo que indica que el modelo está subestimando la respuesta.
+
+## Forward Stepwise
+
+```{r echo=FALSE}
+library(MASS)
+
+regfit.fwd=regsubsets(Salary~.-Player-Tm-NBA_Country,datos,method ="forward")
+summary(regfit.fwd)
+```
+
+## Backward Stepwise
+
+```{r echo=FALSE}
+library(MASS)
+
+stepAIC(regresion4, direction="backward")
+
+regfit.bwd=regsubsets(Salary~.-Player-Tm-NBA_Country,datos,method ="backward")
+summary(regfit.bwd)
+```
+
+```{r echo=FALSE}
+stepAIC(regresion4, direction="both")
+```
+```{r}
+regresion5 = lm(Salary ~ NBA_DraftNumber + Age + G + MP + DRB. + OWS + VORP, data=datos)
+summary(regresion5)
+```
+Obtenemos el modelo de regresion 5 a partir de estudiar los modelos mixtos.
+
+
+## CONTRASTE DE NORMALIDAD
+
+```{r echo=FALSE}
+library(car)
+qqPlot(regresion5, labels=row.names(datos), id.method="identify",
+       simulate = TRUE, main="Q-Q Plot")
+
+```
+Si realizamos un contraste de normalidad del modelo de regresion 5, podemos enteder que se parece a una normal
+
+```{r pressure, echo=FALSE}
+residplot <- function(fit, nbreaks=10) {
+  z <- rstudent(fit)
+  hist(z, breaks=nbreaks, freq=FALSE,
+       xlab="Studentized Residual",
+       main="Distribution of Errors")
+  rug(jitter(z), col="brown")
+  curve(dnorm(x, mean=mean(z), sd=sd(z)),
+        add=TRUE, col="blue", lwd=2)
+  lines(density(z)$x, density(z)$y,
+        col="red", lwd=2, lty=2)
+  legend("topright",
+         legend = c( "Normal Curve", "Kernel Density Curve"),
+         lty=1:2, col=c("blue","red"), cex=.7)
+}
+
+residplot(regresion5)
+```
+
+## PREDICCION
+```{r echo=FALSE}
+set.seed(1234)
+predict <- predict(regresion5, datos)
+predict[sample(1:485, 10)]
+```
+Obtenemos el salario de 10 jugadores aleatorios de la NBA.
