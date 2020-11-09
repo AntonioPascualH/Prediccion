@@ -1,0 +1,299 @@
+---
+title: 'NBA: CV Y Regularizacion'
+author: "Antonio Pascual Hernandez"
+output:
+  html_document: default
+  pdf_document: default
+---
+# Cross Validation
+
+## Validation Set
+
+Consiste en dividir la muestra de forma aleatoria en dos submuestras. 
+
+```{r echo=FALSE, warning=FALSE}  
+library(rsample)
+```
+
+
+```{r echo=FALSE, results = "hide"}  
+nba=read.csv("nba.csv") 
+nba <- na.omit(nba) 
+duplicated(nba)
+nrow(nba[duplicated(nba$Player),])
+nba <- nba[!duplicated(nba$Player),] 
+nba <- nba[c(-1, -3, -6)]
+```
+Se han eliminado los NAs, los datos duplicados y las variables categoricas
+```{r echo=FALSE}  
+set.seed(123)
+data_split <- initial_split(nba, prob = 0.80, strata = Salary)
+data_train <- training(data_split)
+data_test  <-  testing(data_split)
+regres_train <- lm(Salary ~ ., data_train ) 
+regres_train1 <- lm(Salary~NBA_DraftNumber + Age + G + MP, data_train ) 
+c(AIC(regres_train),AIC(regres_train1)) 
+```
+Creamos un modelo en el que el salario depende de todas las variables (regres_train).
+Creamos un modelo en el que el salario depende del nº de draft, de la edad, de los partidos jugados y de los minutos jugados (regres_train1)
+Como el mejor modelo será aque con un menor AIC, elegimos el modelo regres_train
+
+
+```{r  echo=FALSE}
+pred_0 <- predict(regres_train,newdata = data_test)
+MSE0 <- mean((data_test$Salary-pred_0)^2)
+pred_1 <- predict(regres_train1,newdata = data_test)
+MSE1 <- mean((data_test$Salary-pred_1)^2)
+c(MSE0,MSE1)
+```
+
+## Leave-One-Out Cross-Validation
+El LOOCV consiste en tomar una muestra con todos los datos menos uno. Se estima el modelo y se predice sobre el dato que se ha dejado fuera. Este proceso se repite para los n datos.
+
+```{r echo=FALSE, warning=TRUE}
+library(glmnet)
+library (boot)
+set.seed(123)
+glm.fit1=glm(Salary~.,nba,family = gaussian())
+coef(glm.fit1)
+
+cv.err =cv.glm(nba,glm.fit1)
+
+cv.err$delta
+
+glm.fit2=glm(Salary~.,nba,family = gaussian())
+cv.err2 =cv.glm(nba,glm.fit2)
+cv.err2$delta
+
+```
+El primer valor de delta es la estimación k-fold estándar y el segundo con el sesgo corregido.
+
+
+## K-Fold Cross-Validation
+Supone dividir la muestra en k grupos o folds, de aproximadamente igual tamaño. Cada folds es tratado como un conjunto de validación, de tal forma que se estima el modelo con los datos que no están el fold (los otros k−1 folds) y se predicen en el fold.
+
+```{r  echo=FALSE}
+
+set.seed(123)
+cv.err =cv.glm(nba,glm.fit1,K=10)
+cv.err$delta
+
+glm.fit2=glm(Salary~.,nba,family = gaussian())
+cv.err2 =cv.glm(nba,glm.fit2,K=10)
+cv.err2$delta
+```
+El primer valor de delta es la estimación k-fold estándar y el segundo con el sesgo corregido.
+
+# Regularización
+
+## Ridge
+
+```{r echo=FALSE, warning=TRUE}
+library(rsample)  # data splitting 
+library(glmnet)   # implementing regularized regression approaches
+library(dplyr)
+library(ggplot2)
+```
+
+```{r  echo=FALSE}
+set.seed(123)
+ames_split <- initial_split(nba, prop = .7, strata = "Salary")
+ames_train <- training(ames_split)
+ames_test  <- testing(ames_split)
+
+ames_train_x <- model.matrix(Salary ~ ., ames_train)[, -1]
+ames_train_y <- log(ames_train$Salary)
+
+ames_test_x <- model.matrix(Salary ~ ., ames_test)[, -1]
+ames_test_y <- log(ames_test$Salary)
+
+# What is the dimension of of your feature matrix?
+dim(ames_train_x)
+```
+La matriz tiene un dimesion de 339x24
+
+```{r  echo=FALSE}
+ames_ridge <- glmnet(
+  x = ames_train_x,
+  y = ames_train_y,
+  alpha = 0
+)
+
+plot(ames_ridge, xvar = "lambda")
+```
+
+```{r  echo=FALSE}
+ames_ridge$lambda %>% head()
+
+# coefficients for the largest and smallest lambda parameters
+coef(ames_ridge)[c("MP", "G"), 100]
+##   Gr_Liv_Area TotRms_AbvGrd 
+
+coef(ames_ridge)[c("AST.", "MP"), 1] 
+##   Gr_Liv_Area TotRms_AbvGrd 
+```
+
+## Tuning λ 
+
+```{r  echo=FALSE}
+ames_ridge_cv <- cv.glmnet(
+  x = ames_train_x,
+  y = ames_train_y,
+  alpha = 0
+)
+
+# plot results
+plot(ames_ridge_cv)
+```
+
+```{r  echo=FALSE}
+min(ames_ridge_cv$cvm)       # minimum MSE
+
+ames_ridge_cv$lambda.min     # lambda for this min MSE
+
+log(ames_ridge_cv$lambda.min)
+
+ames_ridge_cv$cvm[ames_ridge_cv$lambda == ames_ridge_cv$lambda.1se]  # 1 st.error of min MSE
+
+ames_ridge_cv$lambda.1se  # lambda for this MSE
+
+log(ames_ridge_cv$lambda.1se)
+
+plot(ames_ridge, xvar = "lambda")
+abline(v = log(ames_ridge_cv$lambda.1se), col = "red", lty = "dashed")
+```
+
+### Ventajas y desventajas
+
+```{r  echo=FALSE}
+coef(ames_ridge_cv, s = "lambda.1se") %>%
+  broom::tidy() %>%
+  filter(row != "(Intercept)") %>%
+  top_n(25, wt = abs(value)) %>%
+  ggplot(aes(value, reorder(row, value))) +
+  geom_point() +
+  ggtitle("Top 25 influential variables") +
+  xlab("Coefficient") +
+  ylab(NULL)
+```
+
+## Lasso
+```{r  echo=FALSE}
+ames_lasso <- glmnet(
+  x = ames_train_x,
+  y = ames_train_y,
+  alpha = 1
+)
+
+plot(ames_lasso, xvar = "lambda")
+
+```
+
+## Tuning - CV
+
+```{r  echo=FALSE}
+# Apply CV Ridge regression to ames data
+ames_lasso_cv <- cv.glmnet(
+  x = ames_train_x,
+  y = ames_train_y,
+  alpha = 1
+)
+# plot results
+plot(ames_lasso_cv)
+```
+
+```{r  echo=FALSE}
+min(ames_lasso_cv$cvm)       # minimum MSE
+
+ames_lasso_cv$lambda.min     # lambda for this min MSE
+
+ames_lasso_cv$cvm[ames_lasso_cv$lambda == ames_lasso_cv$lambda.1se]  # 1 st.error of min MSE
+
+ames_lasso_cv$lambda.1se  # lambda for this MSE
+
+#
+plot(ames_lasso, xvar = "lambda")
+abline(v = log(ames_lasso_cv$lambda.min), col = "red", lty = "dashed")
+abline(v = log(ames_lasso_cv$lambda.1se), col = "red", lty = "dashed")
+```
+
+### Ventajas y Desventajas
+
+```{r  echo=FALSE}
+coef(ames_lasso_cv, s = "lambda.1se") %>%
+  tidy() %>%
+  filter(row != "(Intercept)") %>%
+  ggplot(aes(value, reorder(row, value), color = value > 0)) +
+  geom_point(show.legend = FALSE) +
+  ggtitle("Influential variables") +
+  xlab("Coefficient") +
+  ylab(NULL)
+```
+
+```{r  echo=FALSE}
+# minimum Ridge MSE
+min(ames_ridge_cv$cvm)
+
+# minimum Lasso MSE
+min(ames_lasso_cv$cvm)
+```
+
+## Elastic Net (Red elástica)
+La red elástica es otra penalización que incorpora la selección variable del lazo y la contracción de predictores correlacionados como la regresión de ridge.
+```{r  echo=FALSE}
+lasso    <- glmnet(ames_train_x, ames_train_y, alpha = 1.0) 
+elastic1 <- glmnet(ames_train_x, ames_train_y, alpha = 0.25) 
+elastic2 <- glmnet(ames_train_x, ames_train_y, alpha = 0.75) 
+ridge    <- glmnet(ames_train_x, ames_train_y, alpha = 0.0)
+
+par(mfrow = c(2, 2), mar = c(6, 4, 6, 2) + 0.1)
+plot(lasso, xvar = "lambda", main = "Lasso (Alpha = 1)\n\n\n")
+plot(elastic1, xvar = "lambda", main = "Elastic Net (Alpha = .25)\n\n\n")
+plot(elastic2, xvar = "lambda", main = "Elastic Net (Alpha = .75)\n\n\n")
+plot(ridge, xvar = "lambda", main = "Ridge (Alpha = 0)\n\n\n")
+```
+
+Se escoge el lasso.
+
+## Tuning
+Elastic nets: λ y α
+
+```{r  echo=FALSE}
+fold_id <- sample(1:10, size = length(ames_train_y), replace=TRUE)
+
+# search across a range of alphas
+tuning_grid <- tibble::tibble(
+  alpha      = seq(0, 1, by = .1),
+  mse_min    = NA,
+  mse_1se    = NA,
+  lambda_min = NA,
+  lambda_1se = NA
+)
+tuning_grid
+```
+
+```{r  echo=FALSE}
+for(i in seq_along(tuning_grid$alpha)) {
+  
+  # fit CV model for each alpha value
+  fit <- cv.glmnet(ames_train_x, ames_train_y, alpha = tuning_grid$alpha[i], foldid = fold_id)
+  
+  # extract MSE and lambda values
+  tuning_grid$mse_min[i]    <- fit$cvm[fit$lambda == fit$lambda.min]
+  tuning_grid$mse_1se[i]    <- fit$cvm[fit$lambda == fit$lambda.1se]
+  tuning_grid$lambda_min[i] <- fit$lambda.min
+  tuning_grid$lambda_1se[i] <- fit$lambda.1se
+}
+
+tuning_grid
+```
+Nos quedamos con alpha = 1, ya que su landa es el menor
+
+```{r  echo=FALSE}
+tuning_grid %>%
+  mutate(se = mse_1se - mse_min) %>%
+  ggplot(aes(alpha, mse_min)) +
+  geom_line(size = 2) +
+  geom_ribbon(aes(ymax = mse_min + se, ymin = mse_min - se), alpha = .25) +
+  ggtitle("MSE ± one standard error")
+```
