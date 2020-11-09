@@ -1,0 +1,126 @@
+---
+title: "Pisa GAM"
+Author: "Antonio Pascual Hernández"
+output: html_document
+---
+### Objetivo
+El objetivo es modelizar la relación entre la puntuación media (OSS) y el resto de variables, utilizando modelos de splines y GAM.
+
+```{r setup, include=FALSE}
+library(magrittr) # Pipe operators
+library(corrplot) # Correlations
+library(ggcorrplot)  # Correlations
+library(PerformanceAnalytics) # Correlations
+library(leaps) # Model selection
+library(readr)
+library(skimr)
+library(mgcv)
+library(janitor) 
+library(rsample)   
+library(glmnet)   
+library(broom) 
+library(mgcv)
+library(tidyverse)# Para las Estimaciones GAM
+library(imputeTS)
+```
+
+```{r}
+pisa <- read.csv("pisasci2006.csv")
+pisa %<>%
+  select(Country, Overall, Interest, Support, Income, Health, Edu, HDI) 
+pisa %<>% clean_names()
+
+```
+Cargamos el fichero de datos y seleccionamos las variables que vamos a utilizar.
+
+```{r}
+pisa <- na_mean(pisa)
+pisa %<>% distinct(country,.keep_all= TRUE)
+```
+Sustituimos los NAs por la media y los duplicados
+
+```{r}
+skim(pisa) 
+```
+Estudiamos nuestra dataset con skim()
+
+### Graficos
+```{r}
+par(mfrow=c(2,4))
+plot(pisa$overall,pisa$explain)
+plot(pisa$overall,pisa$issues)
+plot(pisa$overall,pisa$evidence)
+plot(pisa$overall,pisa$interest)
+plot(pisa$overall,pisa$support)
+plot(pisa$overall,pisa$income)
+plot(pisa$overall,pisa$Health)
+plot(pisa$overall,pisa$edu)
+plot(pisa$overall,pisa$hdi)
+```
+
+A continuación, se estudiaran los grados de libertad de las variables que pueden ser lineales: Interest, Issues y Evidence.
+
+### Splines de Interest
+```{r}
+spl_interest <- smooth.spline(x = pisa$interest, y = pisa$overall, cv = TRUE)
+spl_interest$df
+```
+
+### Splines de Income
+```{r}
+spl_interest <- smooth.spline(x = pisa$income, y = pisa$overall, cv = TRUE)
+spl_interest$df
+```
+
+### Splines de Support
+```{r}
+spl_interest <- smooth.spline(x = pisa$support, y = pisa$overall, cv = TRUE)
+spl_interest$df
+```
+
+
+### Splines de Edu
+```{r}
+spl_interest <- smooth.spline(x = pisa$edu, y = pisa$overall, cv = TRUE)
+spl_interest$df
+```
+
+
+### Splines de Health
+```{r}
+spl_interest <- smooth.spline(x = pisa$health, y = pisa$overall, cv = TRUE)
+spl_interest$df
+```
+
+
+### Splines de IDH
+```{r}
+spl_interest <- smooth.spline(x = pisa$hdi, y = pisa$overall, cv = TRUE)
+spl_interest$df
+```
+
+### Creaccion y comparacion de modelos
+```{r}
+modelo1 <- gam(overall ~ s(interest) + s(support) + s(income)  + s(edu) + s(health)  , data = pisa)
+par(mfrow = c(2, 3))
+plot(modelo1, se = TRUE, col = 'blue', lwd = 2)
+```
+El modelo1 es un modelo que tiene 5 spines
+
+```{r}
+modelo2 <- gam(overall ~ interest + support + s(income) + health + s(edu) + s(hdi), data = pisa)
+par(mfrow = c(1, 3))
+plot(modelo2, se = TRUE, col = 'blue', lwd = 2)
+```
+El modelo2 tiene 3 variables lineales y 3 splines
+
+Comparamos los modelos
+```{r}
+anova(modelo1,modelo2,test='F')
+```
+Observamos que es modelo2 es mejor opcion 
+
+A continuación, se estudian laas caracteristicas del modelo
+```{r}
+summary(modelo2)
+```
