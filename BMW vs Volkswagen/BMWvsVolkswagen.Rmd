@@ -1,0 +1,222 @@
+---
+title: "BMW vs VOLKSWAGEN"
+author: "Antonio Pascual Hernández"
+date: "26/11/2020"
+output:
+  html_document:
+    df_print: paged
+utput:
+  pdf_document:
+    latex_engine: xelatex
+---
+
+## 1. Introducción
+
+Utilizando datos diarios de los dos series desde el año 2014, debemos analizar la relación entre BMW y Volkswagen, estimando el modelo garch de BMW, estudiar si están cointegradas, plantear un modelo VAR mensual entre los dos activos y estimar un modelo HHM para la serie semanal de BMW.
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list=ls())
+library(quantmod)
+```
+
+## 2. Datos
+Obtenemos los datos de BMW y Volkswagen a través de Yahoo Finance y el paquete "quantmod", que permite obtener datos financieros históricos:
+
+### BMW
+```{r, warning=FALSE, message=FALSE}
+sSymbol="BMW.DE"
+BMW <- getSymbols(sSymbol, from="2014-01-01", to="2020-11-20",auto.assign=FALSE) 
+```
+
+
+### VOLKSWAGEN
+```{r, warning=FALSE, message=FALSE}
+VOLW <- getSymbols("VOW3.DE", from="2014-01-01", to="2020-11-20",auto.assign=FALSE) 
+```
+
+## 3. Modelo Garch de BMW
+Con el fin de realizar el análisis de la volatilidad, es necesario especificar esta dependencia, para lo que se utilizan los modelos del tipo de Heteroscedasticidad condicional autorregresiva generalizada (GARCH).
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(forecast)
+library(fGarch)
+```
+
+Se define la función del Multiplicador Lagrangiano:
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#funciones
+archTest <- function(rtn,m=10){
+  # Perform Lagrange Multiplier Test for ARCH effect of a time series
+  # rtn: time series
+  # m: selected AR order
+  # TSAY(2013)
+  y=(rtn-mean(rtn))^2
+  T=length(rtn)
+  atsq=y[(m+1):T]
+  x=matrix(0,(T-m),m)
+  for (i in 1:m){
+    x[,i]=y[(m+1-i):(T-i)]
+  }
+  md=lm(atsq~x)
+  summary(md)
+}
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+xData=Ad(BMW)
+xData=Ad(VOLW)
+```
+
+Se debe calcular el retorno aritmético diario:
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#Calculate Daily Arithmetic Return
+dRentCont=dailyReturn(xData,type='log',leading=FALSE)
+#Exclude NA (First data)
+dRentCont=na.exclude(dRentCont)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+plot.zoo(cbind(xData,dRentCont),main=paste(sSymbol," y  Rentabilidad"),xlab="años",ylab=c("Precio","rentabilidad"))
+grid(lwd=2)
+```
+
+Si se representan los precios y los rendimientos de las acciones de BMW, se puede observar que los precios cayaeron entre 2015-2016 y en 2020 debido al COVID-19, y por lo tanto, también se observa una mayor variación de las rentibilidades en esos periodos.
+
+A continuación se estudiará la volatilidad del modelo GARCH:
+Se representa el Plot return squared:
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+plot.zoo(cbind(Ad(BMW),dRentCont,dRentCont^2),main=paste(sSymbol," y  Rentabilidad"),xlab="años",ylab=c("Precio","rentabilidad","Volatilidad"))
+```
+### Testing mean
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+t.test(dRentCont)
+```
+
+Reprsentacion de la Función de autocorrelación simple y Función de autocorrelación parcial (ACF & PACF):
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+VolProxy=dRentCont^2
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+tsdisplay(VolProxy)
+```
+Tras observar los gráficos de ACF Y PACF, se puede concluir que existe autocorrelación y autocorrelación parcial entre los retardos.
+
+### Ljung-Box Test:
+La prueba de Box-Ljung es una herramienta de diagnóstico utilizada para probar la falta de ajuste de un modelo de serie temporal.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+Box.test(VolProxy,lag=10,  type="Lj")
+Box.test(VolProxy,lag=20,  type="Lj")
+Box.test(VolProxy,lag=40,  type="Lj")
+```
+### LM test
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+archTest(dRentCont,20)
+```
+### ARCH(1,1)
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+m1=garchFit(~1+garch(1,0),data=dRentCont,trace=F) # Fit an ARCH(1) model
+summary(m1)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+resi=residuals(m1,standardize=T) #residuals
+resi=xts(resi,order.by=index(dRentCont)) #residuals as xts
+tsdisplay(resi^2) #acf pacf residuals
+```
+### GARCH(1,1)
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+m2=garchFit(~1+garch(1,1),data=dRentCont,trace=F) # Fit an GARCH(1,1) model
+summary(m2)
+```
+
+Tanto para el ARCH(1,1) como para el GARCH(1,1) obtenemos el AIC y el BIC. Si comparamos el AIC, se prefiere el GRANCH(1,1).
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+resi=residuals(m2,standardize=T) #residuals
+resi=xts(resi,order.by=index(dRentCont)) #residuals as xts
+tsdisplay(resi^2) #acf pacf residuals
+#plot(m2)
+```
+
+### t-student
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+m3=garchFit(~1+garch(1,1),data=dRentCont,trace=F,cond.dist="std")
+summary(m3)
+#plot(m3)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+v1=volatility(m3)  # Obtain volatility
+v1=xts(v1,order.by=index(dRentCont)) #  volatility as XTS
+plot(sqrt(252)*v1)
+```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+resi=residuals(m3,standardize=T) # Standardized residuals
+resi=xts(resi,order.by=index(dRentCont)) # Standardized residuals as XTS
+tsdisplay(resi^2) #acf pacf residuals
+plot(resi)
+```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+predict(m3) #forecast volatility
+predict(m3, n.ahead = 10, plot=TRUE, crit_val=2) #plot with 2*standard error
+predict(m3,n.ahead=20,plot=TRUE,conf=.9,nx=100) # plot 100 data with 90% confidence
+```
+
+## 4. Modelos VAR
+
+Las relaciones de retroalimentación (bidirecionalidad) se modelizancon los vectores autorregresivos (VAR).
+
+En un VAR, todas las variables son tratadas simétricamente.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(vars)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+rbmw=monthlyReturn(BMW[,6])
+rvolw=monthlyReturn(VOLW[,6])
+```
+
+Se genera el vector:
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+vY=cbind(rbmw,rvolw)
+colnames(vY)=c("BMW","VOLW")
+vY=na.omit(vY)
+```
+
+### Seleccionar modelo.
+Para una selección de modelo más establecida, puede considerar el uso de VARselect(), que proporciona múltiples criterios de información.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+VARselect(vY)
+```
+
+### Estimación
+Los parámetros estimados y otros múltiples resultados estadísticos pueden obtenerse mediante el método summary():
+```{r}
+model.var=VAR(vY)
+summary(model.var)
+```
+
+```{r , echo=FALSE, warning=FALSE, message=FALSE}
+model.var1=VAR(vY,type="none")
+summary(model.var1)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+causality(model.var1)
+```
+
+Las respuestas de impulso son generadas numéricamente por irf()
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+model.ri=irf(model.var1)
+model.ri
+plot(model.ri)
+```
+
+### Prediccion
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+predict(model.var1, n.ahead = 8, ci = 0.95)
+```
