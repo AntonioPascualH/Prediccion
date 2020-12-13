@@ -1,0 +1,63 @@
+---
+title: 'CP006_2: BMW vs Volkswagen'
+author: "Antonio Pascual Hernández"
+date: "13/12/2020"
+output: html_document
+---
+
+En primer lugar se han cargado los datos de BMW Y Volkswagen y se ha creado un nuevo dataset con las variables que vamos a necesitar para poder estudiar la cointegración.
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list=ls())
+library(quantmod)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+sSymbol="BMW.DE"
+BMW <- getSymbols(sSymbol, from="2014-01-01", to="2020-11-20",auto.assign=FALSE) 
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+VOLW <- getSymbols("VOW3.DE", from="2014-01-01", to="2020-11-20",auto.assign=FALSE) 
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+require(devtools)
+library(urca)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+BMW <- BMW[,6]
+VOLW <- VOLW[,6]
+bmw_volw<-cbind(BMW,VOLW)
+bmw_volw<-na.omit(bmw_volw)
+
+```
+
+## Augmented Dickey-Fuller Test
+```{r  echo=FALSE, warning=FALSE, message=FALSE}
+library(tseries)
+adf.test(bmw_volw[,1],k=0)
+adf.test(bmw_volw[,2],k=0)
+
+adf.test(bmw_volw[,1],k=6)
+adf.test
+```
+La Prueba de Dickey-Fuller busca determinar la existencia o no de raíces unitarias en una serie de tiempo. La hipótesis nula de esta prueba es que existe una raíz unitaria en la serie. Como todos los todos los p-valores > 0,05, no se acepta la hipótesis nula, y por lo tanto, no son estacionario, tanto para 0 retardos como para 6 retardos.
+
+## Augmented Dickey-Fuller Test Unit Root Test
+Augmented Dickey-Fuller Test Unit Root Test es una versión aumentada de la prueba Dickey-Fuller para un conjunto más amplio y más complejo de modelos de series de tiempo. El estadística Dickey-Fuller Aumentada, utilizada en la prueba, es un número negativo. Cuanto más negativo es, más fuerte es el rechazo de la hipótesis nula de que existe una raíz unitaria para un cierto nivel de confianza
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+test_1<-ur.df(bmw_volw[,1],type="none",selectlags="AIC",lags=10)
+summary(test_1)
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+test_2<-ur.df(bmw_volw[,2],type="none",selectlags="AIC",lags=10)
+summary(test_2)
+```
+
+He tenido problemas a la hora de installar "PairTrading". He seguido los pasos que indica en enlace https://cran.rstudio.com/bin/windows/Rtools/ ya que indica que Rtools no está instalado. Por este motivo no he podido realizar las últimas lineas de código. Disculpe las molestias.
