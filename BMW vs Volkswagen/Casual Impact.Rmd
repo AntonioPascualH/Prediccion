@@ -1,0 +1,75 @@
+---
+title: "Casual Impact"
+author: "Antonio Pascual"
+date: "13/12/2020"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## 1. Introducción
+Utilizando datos diarios de los dos series desde el año 2014, debemos analizar la relación entre BMW y Volkswagen utilizando el modelo de Causal Impact, para estimar el efecto del diesel gate.
+Se dividiran los datos en dos peridos: antes de Emissions Gate y después del Emissions Gata.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(readr)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(xts)
+library(CausalImpact)
+library(quantmod)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+getSymbols('BMW.DE', from = '2014-01-01', to = Sys.Date())
+bmw <- BMW.DE[,6]
+
+getSymbols('VOW.DE', from = '2014-01-01', to = Sys.Date())
+volk <- VOW.DE[,6]
+
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+pre_period <- as.Date(c("2014-01-01", "2015-09-01"))
+post_period <- as.Date(c("2015-09-02", "2020-12-06"))
+Volskwagen_c <- cbind(volks, bmw)
+BMW<-cbind(bmw,volks)
+Volskwagen_c<-na.omit(Volskwagen_c)
+VOL<-na.omit(bmw_c)
+```
+
+## 2. Casual Impact
+```{r , echo=FALSE, warning=FALSE, message=FALSE}
+causalimpact <- CausalImpact(VOL, pre.period = pre_period, post.period = post_period)
+```
+
+```{r , echo=FALSE, warning=FALSE, message=FALSE}
+summary(causalimpact)
+plot(causalimpact)
+plot(causalimpact, "original")
+```
+Como se observa después del Emissions Gate hubo una clara caida en el valor de Volkswagen.
+
+```{r , echo=FALSE, warning=FALSE, message=FALSE}
+
+summary(causal, "report")
+```
+
+```{r}
+causal1 <- CausalImpact(BMW, pre.period = pre_period, post.period = post_period)
+```
+```{r}
+summary(causal1)
+plot(causal1)
+plot(causal1, "original")
+```
+
+En el caso de BMW, podemos observar que tras el Emission Gate, BMW no sufre las mismas consequencias que Volskwagen. 
+```{r}
+summary(causal1, "report")
+```
+
