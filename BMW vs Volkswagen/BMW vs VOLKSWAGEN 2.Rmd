@@ -1,0 +1,29 @@
+---
+title: "BMW vs VOLKSWAGEN 2"
+author: "Antonio Pascual Hernández"
+date: "13/12/2020"
+output: pdf_document
+---
+
+## 1. Introducción
+Utilizando datos diarios de los dos series desde el año 2014, debemos analizar la relación entre BMW y Volkswagen utilizando el modelo de Causal Impact, para estimar el efecto del diesel gate.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+rm(list=ls())
+library(quantmod)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+sSymbol="BMW.DE"
+BMW <- getSymbols(sSymbol, from="2014-01-01", to="2020-11-20",auto.assign=FALSE) 
+```
+
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+VOLW <- getSymbols("VOW3.DE", from="2014-01-01", to="2020-11-20",auto.assign=FALSE) 
+```
+
+## Casual Impact
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+library(CausalImpact) 
+```
